@@ -190,6 +190,65 @@ app.post('/webhook/omi/memory', async (req, res) => {
 });
 
 // ============================================
+// Root POST (Omi App Integration format)
+// Omi sends full conversation object to /?uid=xxx
+// ============================================
+
+app.post('/', async (req, res) => {
+  try {
+    const memory = req.body;
+    const segments = memory.transcript_segments || [];
+    const transcript = segments.length > 0
+      ? segments.map(s => `${s.speaker || 'Unknown'}: ${s.text}`).join('\n')
+      : (memory.transcript || null);
+
+    if (!transcript || transcript.trim().length === 0) {
+      return res.status(200).json({ success: true, message: 'No transcript' });
+    }
+
+    const structured = memory.structured || null;
+    const timestamp = memory.created_at || memory.started_at || new Date().toISOString();
+    const eventDate = new Date(timestamp).toISOString().split('T')[0];
+    const speaker = (segments[0] && segments[0].speaker) || 'Unknown';
+
+    const { data, error } = await supabase
+      .from('omi_events')
+      .insert([{
+        event_date: eventDate,
+        event_timestamp: new Date(timestamp).toISOString(),
+        transcript: transcript.trim(),
+        speaker,
+        source: 'omi_app',
+        raw_metadata: {
+          structured: structured ? {
+            title: structured.title,
+            overview: structured.overview,
+            action_items: structured.action_items || []
+          } : null,
+          segment_count: segments.length,
+          uid: req.query.uid || null,
+          received_at: new Date().toISOString()
+        },
+        processed: false,
+        embedding_indexed: false
+      }])
+      .select('id, event_timestamp');
+
+    if (error) {
+      console.error('Supabase insert error:', error.message);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    console.log(`App event stored: ${data[0].id} | ${eventDate} | ${segments.length} segments${structured?.title ? ` | "${structured.title}"` : ''}`);
+    return res.status(200).json({ success: true, event_id: data[0].id });
+
+  } catch (err) {
+    console.error('Root webhook error:', err.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ============================================
 // Test Endpoint
 // ============================================
 
