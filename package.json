@@ -1,0 +1,15 @@
+{
+  "name": "omi-transcript-webhook",
+  "version": "1.0.0",
+  "description": "Omi webhook server — receives real-time transcripts and stores them in Supabase",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
